@@ -1,175 +1,188 @@
-JWT Server
+# 🔐 JWT Authentication Server
 
-A FastAPI-based JWT authentication server with encrypted RSA key storage, rate limiting, and JWKS support.
+A secure, production-ready **JWT authentication server** built with FastAPI and Python — featuring RSA key encryption, automatic key rotation, JWKS support, and per-IP rate limiting.
 
-Features
+---
 
-User Registration with Argon2-hashed passwords
+## ✨ Features
 
-JWT Authentication using RSA keys encrypted via AES-GCM
+| Feature | Details |
+|---|---|
+| 🔑 User Registration | Passwords hashed with **Argon2** (winner of Password Hashing Competition) |
+| 🛡️ JWT Authentication | Signed with **RSA keys** encrypted at rest via **AES-GCM** |
+| 🔄 Key Rotation | Automatic RSA key generation and expiry management |
+| 🌐 JWKS Endpoint | Exposes active public keys at `/.well-known/jwks.json` |
+| 🚦 Rate Limiting | Per-IP throttling — max 1 auth attempt per 5 seconds |
+| 📋 Auth Logging | Every authentication logged with timestamp and IP address |
+| 🧹 Key Cleanup | Utility to purge expired keys from the database |
 
-Automatic Key Generation & Rotation
+---
 
-JWKS Endpoint to expose current public keys
+## 🛠️ Tech Stack
 
-Per-IP Rate Limiting for authentication attempts
+- **Framework:** FastAPI + Uvicorn
+- **Database:** SQLite3
+- **Cryptography:** RSA (JWT signing), AES-GCM (key encryption), Argon2 (password hashing)
+- **Testing:** pytest + pytest-cov
 
-Authentication Logging with timestamp and IP
+---
 
-Key Cleanup Utility (clean_up_expired_keys()) for removing expired keys
+## ⚙️ Installation
 
-Requirements
+### Prerequisites
+- Python 3.8+
+- SQLite3 (bundled with Python)
 
-Python 3.8 or higher
+### Setup
 
-SQLite3 (bundled with Python)
+```bash
+# 1. Clone the repository
+git clone https://github.com/Grmishra123/jwks-server-project-part3.git
+cd jwks-server-project-part3
 
-A modern operating system (Linux, macOS, Windows)
+# 2. Create and activate a virtual environment
+python -m venv venv
+source venv/bin/activate        # macOS/Linux
+venv\Scripts\activate           # Windows
 
-Installation
-
-Clone the repository
-
-git clone https://github.com/your-repo/jwt-server.git
-cd jwt-server
-
-Create a virtual environment and activate it:
-
-python -m venv venv                # create venv
-source venv/bin/activate           # on macOS/Linux
-venv\Scripts\activate            # on Windows
-
-Install dependencies:
-
+# 3. Install dependencies
 pip install fastapi uvicorn python-dotenv pydantic jose cryptography argon2-cffi
 
-(Optional) install testing dependencies:
-
+# 4. (Optional) Install testing dependencies
 pip install pytest pytest-cov
+```
 
-Configuration
+---
 
-Create a file named .env in the project root:
+## 🔧 Configuration
 
-NOT_MY_KEY=<BASE64-ENCODED-32-BYTE-KEY>
+Create a `.env` file in the project root:
 
-To generate a suitable key, run in Python:
+```env
+NOT_MY_KEY=<your_base64_encoded_32_byte_key>
+```
 
+Generate a secure key with:
+
+```python
 import os, base64
 print(base64.b64encode(os.urandom(32)).decode())
+```
 
-Database Initialization
+---
 
-On startup, the server will automatically initialize (or reset) the SQLite database file totally_not_my_privateKeys.db, creating these tables:
+## 🗄️ Database
 
-keys — stores encrypted RSA private keys, nonces, and expiry timestamps
+On startup, the server automatically initializes `totally_not_my_privateKeys.db` with three tables:
 
-users — stores user credentials and metadata
+- **`keys`** — encrypted RSA private keys, nonces, and expiry timestamps
+- **`users`** — user credentials and metadata
+- **`auth_logs`** — authentication history by IP and timestamp
 
-auth_logs — logs each successful authentication by IP and timestamp
+> A default admin user is seeded on first run (`admin` / `password`).
 
-An admin user (username: admin, password: password) is seeded by default.
+---
 
-Running the Server
+## 🚀 Running the Server
 
+```bash
 uvicorn jwt_server:app --reload --host 0.0.0.0 --port 8080
+```
 
-API Endpoints
+Server will be available at `http://localhost:8080`
 
-POST /register
+---
 
-Register a new user.
+## 📡 API Endpoints
 
-Request Body (JSON):
+### `POST /register`
+Register a new user. Returns a generated password.
 
-{
-  "username": "your_username",
-  "email": "optional@example.com"
-}
+```json
+// Request
+{ "username": "your_username", "email": "optional@example.com" }
 
-Response: 200 OK (or 201 Created)
+// Response
+{ "password": "<generated_password>" }
+```
 
-{ "password": "<generated-password>" }
+---
 
-POST /auth
+### `POST /auth`
+Authenticate and receive a signed JWT.
 
-Authenticate a user and receive a JWT.
+| Query Param | Type | Description |
+|---|---|---|
+| `expired` | bool (optional) | If `true`, issues an already-expired token (for testing) |
 
-Query Parameters:
+```json
+// Request
+{ "username": "your_username", "password": "your_password" }
 
-expired (bool, optional): if true, issues an already-expired token (for testing).
+// Response — 200 OK
+{ "jwt": "<signed_jwt_token>" }
 
-Request Body (JSON):
+// Response — 401 Unauthorized
+// Response — 429 Too Many Requests (rate limit exceeded)
+```
 
-{
-  "username": "your_username",
-  "password": "your_password"
-}
+---
 
-Responses:
+### `GET /.well-known/jwks.json`
+Returns the JSON Web Key Set of all active public keys.
 
-200 OK — { "jwt": "<token>" }
-
-401 Unauthorized — invalid credentials
-
-429 Too Many Requests — rate limit exceeded (one attempt per 5 seconds)
-
-GET /.well-known/jwks.json
-
-Retrieve the JSON Web Key Set of active public keys.
-
-Response: 200 OK
-
+```json
 {
   "keys": [
     {
       "kty": "RSA",
-      "kid": "<key-id>",
+      "kid": "<key_id>",
       "alg": "RS256",
       "use": "sig",
       "n": "<modulus>",
       "e": "AQAB"
     }
-    // ... more keys
   ]
 }
+```
 
-Utilities
+---
 
-Key Cleanup: If you need to purge expired keys manually (used in testing), import and call:
+## 🧪 Testing
 
+```bash
+pytest test_jwt_server.py
+```
+
+Test coverage includes:
+- ✅ User registration
+- ✅ Authentication success & failure
+- ✅ JWKS endpoint content
+- ✅ Expired token handling
+- ✅ Expired key cleanup
+- ✅ HTTP method validation
+- ✅ Rate limiting
+- ✅ Authentication logging
+
+---
+
+## 🧹 Utilities
+
+Manually purge expired keys (useful in testing):
+
+```python
 from jwt_server import clean_up_expired_keys
 clean_up_expired_keys()
+```
 
-Testing
+---
 
-Run the provided test suite using pytest:
+## 📄 License
 
-pytest test_jwt_server.py
+MIT License — see [LICENSE](LICENSE) for details.
 
-The tests cover:
+---
 
-User registration
+## 👤 Author
 
-Authentication success/failure
-
-JWKS content
-
-Expired token handling
-
-Expired-key cleanup
-
-HTTP method validations
-
-Rate limiting
-
-Authentication logging
-
-License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
-
-Author
-
-Grishab Mishra
-
+**Grishab Mishra** — [GitHub](https://github.com/Grmishra123)
